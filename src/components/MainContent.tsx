@@ -47,7 +47,7 @@ const MainContent = ({
 	}, [messages, activePanel]);
 
 	return (
-		<div className="w-100 h-50 d-flex flex-column align-items-center">
+		<div className="w-100 h-100 pb-4 d-flex flex-column align-items-center">
 			{isMobileUI && (
 				<div
 					className="w-100 d-flex flex-row justify-content-start align-items-center"
@@ -106,7 +106,7 @@ const MainContent = ({
 				<div
 					className="d-flex flex-column flex-grow-1 w-100 align-items-center"
 					style={{
-						height: isMobileUI ? "calc(100vh - 60px)" : "100%",
+						height: isMobileUI ? "calc(100dvh - 60px)" : "100%",
 					}}
 				>
 					<div

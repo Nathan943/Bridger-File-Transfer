@@ -54,6 +54,8 @@ class CryptoHandler {
 		this.privateKey = keyPair.privateKey;
 
 		await this.saveKeys();
+
+		await this.loadKeys();
 	}
 
 	async exportPublicKey() {
@@ -231,6 +233,10 @@ class CryptoHandler {
 			const publicKeyRequest = store.get("public");
 			const privateKeyRequest = store.get("private");
 
+			publicKeyRequest.onsuccess = () => {};
+
+			privateKeyRequest.onsuccess = () => {};
+
 			transaction.oncomplete = () => {
 				this.publicKey = publicKeyRequest.result?.key ?? null;
 				this.privateKey = privateKeyRequest.result?.key ?? null;
@@ -272,7 +278,25 @@ class CryptoHandler {
 				}
 
 				//Compare keys
-				resolve(storedKey == receivedKey);
+				if (storedKey != receivedKey) {
+					const writeTransaction = this.db.transaction(
+						"keys",
+						"readwrite",
+					);
+
+					writeTransaction.objectStore("keys").put({
+						id: targetClientId,
+						key: receivedKey,
+					});
+
+					writeTransaction.oncomplete = () => resolve(true);
+					writeTransaction.onerror = () =>
+						reject(writeTransaction.error);
+
+					return;
+				}
+
+				resolve(true);
 			};
 
 			transaction.onerror = () => reject(transaction.error);

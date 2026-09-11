@@ -265,6 +265,7 @@ class SocketHandler {
 						parsedMessage.publicKey,
 						parsedMessage.targetClientId,
 					);
+
 					break;
 
 				case "FILE_META":

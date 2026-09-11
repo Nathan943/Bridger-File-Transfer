@@ -105,6 +105,7 @@ const App = () => {
 
 	const clearMessageHistory = async (forgetDevices: boolean) => {
 		//Go through every message, removing the associated saved file in the database
+
 		for (const conversation of conversations) {
 			for (const message of conversation.messages) {
 				await fileStorageHandler.deleteFile(message.id);
