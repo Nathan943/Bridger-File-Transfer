@@ -7,6 +7,7 @@ class FileStorageHandler {
 	private request: IDBOpenDBRequest | null = null;
 	private db: IDBDatabase | null = null;
 
+
 	//Connect to the database
 	async connect(): Promise<void> {
 		if (this.db) return;
@@ -43,6 +44,8 @@ class FileStorageHandler {
 			};
 		});
 	}
+
+
 
 	//Add a file to the database
 	async addFile(fileId: string, file: File): Promise<void> {
@@ -85,6 +88,8 @@ class FileStorageHandler {
 		});
 	}
 
+
+	//Delete a file
 	async deleteFile(fileId: string) {
 		if (!this.db) return;
 
@@ -99,7 +104,9 @@ class FileStorageHandler {
 		});
 	}
 
-	//Get a file from the database
+
+
+	//Get a file
 	async getFile(fileId: string): Promise<File | null> {
 		if (!this.db) {
 			return null;
@@ -122,7 +129,9 @@ class FileStorageHandler {
 		});
 	}
 
-	//Remove the oldest file from the database
+
+
+	//Remove the oldest file from the database (used when space is overflowing)
 	async deleteOldestFile(): Promise<void> {
 		if (!this.db) {
 			throw new Error("Database not found");

@@ -10,6 +10,7 @@ import DropOverlay from "./components/DropOverlay";
 import "./App.css";
 
 const App = () => {
+	//Set variable for determining mobile or desktop UI
 	type MobileScreen = "sidebar" | "main";
 	const [mobileScreen, setMobileScreen] = useState<MobileScreen>("sidebar");
 
@@ -19,28 +20,17 @@ const App = () => {
 
 		if (!saved) return [];
 
-		try {
-			return JSON.parse(saved);
-		} catch {
-			return [];
-		}
+		try { return JSON.parse(saved); } 
+		catch { return []; }
 	});
 
 	//Keep track of the client that is currently being viewed
-	const [selectedClient, setSelectedClient] = useState<Client>({
-		id: "",
-		name: "",
-		online: false,
-	});
+	const [selectedClient, setSelectedClient] = useState<Client>({ id: "", name: "", online: false, });
 
-	const [serverConnected, setServerConnected] = useState<boolean | null>(
-		null,
-	);
+	const [serverConnected, setServerConnected] = useState<boolean | null>(null);
 
 	//For the MainContent component to decide whether to show the pairing menu or not
-	const [activePanel, setActivePanel] = useState<
-		"none" | "pairing" | "settings" | "contact"
-	>("none");
+	const [activePanel, setActivePanel] = useState<"none" | "pairing" | "settings" | "contact">("none");
 
 	//Hold all conversations, storing id and messages
 	const [conversations, setConversations] = useState<Conversation[]>(() => {
@@ -49,37 +39,38 @@ const App = () => {
 
 		if (!saved) return [];
 
-		try {
-			return JSON.parse(saved);
-		} catch {
-			return [];
-		}
+		try { return JSON.parse(saved); } 
+		catch { return []; }
 	});
+
 	let isRemoteUpdate = useRef(false);
 
-	//Pairing code from websocket server
+	//Pairing code requested from websocket server
 	const [pairingCode, setPairingCode] = useState(0);
+	//This client's name
 	const [name, setName] = useState(localStorage.getItem("displayName") ?? "");
 
+	//For drag and drop
 	const [dragging, setDragging] = useState(false);
 
+	//Get settings
 	const { autoDownload, soundOnDownload, saveFiles } = useSettings();
+
+
 
 	//Add a new message to a conversation, creating one if there is not already
 	const addMessage = (client: Client, message: Message) => {
 		setConversations((prev) => {
 			//Check if a conversation for the client already exists
-			const conversationExists = prev.some(
-				(conversation) => conversation.client.id == client.id,
-			);
+			const conversationExists = prev.some( (c) => c.client.id == client.id );
 
 			//If no conversation exists (new client), create a new one
 			if (!conversationExists) {
 				return [...prev, { client, messages: [message] }];
 			}
 
+			//Otherwise, add the message to a conversation
 			return prev.map((conversation) => {
-				//Add message to conversation and return that concatenated message array
 				if (conversation.client.id == client.id) {
 					return {
 						client: conversation.client,
@@ -87,25 +78,27 @@ const App = () => {
 					};
 				}
 
-				//If the client isnt there, return the original array
+				//If the client isnt there, just return the original array
 				return conversation;
 			});
 		});
 	};
 
+
+
 	//Get all messages with the selected client
 	const getMessages = () => {
 		//Find the selected client's conversation
-		const conversation = conversations.find(
-			(conversation) => conversation.client.id == selectedClient.id,
-		);
+		const conversation = conversations.find( (c) => c.client.id == selectedClient.id );
 
 		return conversation ? conversation.messages : [];
 	};
 
+
+
+	//Clear all messages
 	const clearMessageHistory = async (forgetDevices: boolean) => {
 		//Go through every message, removing the associated saved file in the database
-
 		for (const conversation of conversations) {
 			for (const message of conversation.messages) {
 				await fileStorageHandler.deleteFile(message.id);
@@ -118,11 +111,7 @@ const App = () => {
 				socketHandler.deleteClient(client.id);
 			}
 
-			setSelectedClient({
-				id: "",
-				name: "",
-				online: false,
-			});
+			setSelectedClient({ id: "", name: "", online: false, });
 
 			setConversations([]);
 			setClients([]);
@@ -137,22 +126,10 @@ const App = () => {
 		}
 	};
 
-	//Build message contents to be displayed
-	const buildMessage = (file: File, timestamp: number, client?: Client) => {
-		const msg: Message = {
-			id: crypto.randomUUID(),
-			sender: client,
-			filename: file.name,
-			filesize: file.size,
-			downloadUrl: URL.createObjectURL(file),
-			timestamp: new Date(timestamp).toLocaleString(),
-			status: "sent",
-		};
 
-		return msg;
-	};
 
-	const buildTemporaryMessage = (
+	//Create a new message
+	const buildMessage = (
 		file: TemporaryFile,
 		client?: Client,
 		messageId?: string,
@@ -171,6 +148,9 @@ const App = () => {
 		return msg;
 	};
 
+
+
+	//Edit an existing message, usually with status or progress
 	const editMessage = (
 		id: string,
 		sender?: Client,
@@ -202,11 +182,15 @@ const App = () => {
 		);
 	};
 
+
+
 	//Triggered when user wants to change their name
 	const editName = (name: string) => {
 		socketHandler.editName(name);
 		setName(name);
 	};
+
+
 
 	/*
 	Give each message a download link for its saved file, if the file exists
@@ -220,9 +204,7 @@ const App = () => {
 				messages: await Promise.all(
 					conversation.messages.map(async (message) => {
 						//Check if there is a saved file in the database
-						const file = await fileStorageHandler.getFile(
-							message.id,
-						);
+						const file = await fileStorageHandler.getFile( message.id );
 
 						if (!file) return message;
 
@@ -237,6 +219,8 @@ const App = () => {
 		);
 	};
 
+
+	//Called on init, marks all incomplete messages as failed transfers
 	const markIncompleteMessagesAsFailed = (conversations: Conversation[]) => {
 		return conversations.map((conversation) => ({
 			...conversation,
@@ -253,10 +237,11 @@ const App = () => {
 		}));
 	};
 
+
+
+	//Remove a specified client and all messages with them
 	const deleteClient = async (client: Client) => {
-		const conversation = conversations.find(
-			(c) => c.client.id === client.id,
-		);
+		const conversation = conversations.find( (c) => c.client.id === client.id );
 
 		if (conversation) {
 			for (const message of conversation.messages) {
@@ -264,11 +249,9 @@ const App = () => {
 			}
 		}
 
-		setConversations((prev) =>
-			prev.filter((conversation) => conversation.client.id != client.id),
-		);
+		setConversations( (prev) => prev.filter((conversation) => conversation.client.id != client.id) );
 
-		setClients((prev) => prev.filter((c) => c.id !== client.id));
+		setClients( (prev) => prev.filter((c) => c.id !== client.id) );
 
 		if (selectedClient.id == client.id) {
 			setSelectedClient({ id: "", name: "", online: false });
@@ -277,8 +260,12 @@ const App = () => {
 		socketHandler.deleteClient(client.id);
 	};
 
+
+
+	//Set up everything to upload files
 	const handleFileUpload = async (file: File) => {
-		const message = buildTemporaryMessage(
+		//Create a message for the UI to display
+		const message = buildMessage(
 			{
 				name: file.name,
 				type: file.type,
@@ -290,14 +277,19 @@ const App = () => {
 			URL.createObjectURL(file),
 		);
 
+		//Save file in IndexedDB
 		if (saveFiles) {
 			await fileStorageHandler.addFile(message.id, file);
 		}
 
+		//Log the message in the conversation
 		addMessage(selectedClient, message);
 
+		//Send the file using SocketHandler
 		await socketHandler.send(file, selectedClient, message.id);
 	};
+
+
 
 	//Update local storage when a new contact is added
 	useEffect(() => {
@@ -309,6 +301,8 @@ const App = () => {
 			}
 		}
 	}, [clients]);
+
+
 
 	//Update local storage when a new message or conversation is added
 	useEffect(() => {
@@ -337,12 +331,18 @@ const App = () => {
 		);
 	}, [conversations]);
 
+
+
 	//Update local storage when name is changed
 	useEffect(() => {
 		localStorage.setItem("displayName", name);
 	}, [name]);
 
+
+
+	//Set up drag logic for drag and drop files
 	useEffect(() => {
+		//When a file is dragged onto the page, if it is a valid file, show the drag UI
 		const onDragEnter = (e: DragEvent) => {
 			if (activePanel != "contact") return;
 
@@ -353,12 +353,16 @@ const App = () => {
 			}
 		};
 
+
+		//Stop the default behavior of drag and drop
 		const onDragOver = (e: DragEvent) => {
 			if (activePanel != "contact") return;
 
 			e.preventDefault();
 		};
 
+
+		//Stop dragging if file is dragged off the page
 		const onDragLeave = (e: DragEvent) => {
 			if (activePanel != "contact") return;
 
@@ -374,6 +378,8 @@ const App = () => {
 			}
 		};
 
+
+		//When files are dropped on the page, send them to the current client
 		const onDrop = async (e: DragEvent) => {
 			if (activePanel != "contact") return;
 
@@ -382,7 +388,7 @@ const App = () => {
 
 			const files = Array.from(e.dataTransfer?.files ?? []);
 			for (const file of files) {
-				await handleFileUpload(file);
+				handleFileUpload(file);
 			}
 		};
 
@@ -399,12 +405,16 @@ const App = () => {
 		};
 	}, [activePanel]);
 
+
+
 	//Update document title when selectedClient is changed
 	useEffect(() => {
 		document.title = selectedClient.name
-			? `File sharing with: ${selectedClient.name}`
-			: "File sharing";
+			? `Sharing with: ${selectedClient.name} | Bridger`
+			: "Bridger";
 	}, [selectedClient.name]);
+
+
 
 	//On program start, initialize the databases and assign links for files if necessary
 	useEffect(() => {
@@ -418,6 +428,8 @@ const App = () => {
 
 		init();
 	}, []);
+
+
 
 	//When local storage changes, do different things based on what changed
 	useEffect(() => {
@@ -448,30 +460,32 @@ const App = () => {
 		};
 	}, []);
 
+
+
 	//This useEffect handles interfacing with the WebSocket (intializes on program start)
 	useEffect(() => {
-		//Generate a new id for this client if there isnt one saved in local storage
 
 		//Initialize WS connection
 		const authToken = localStorage.getItem("authToken");
 		socketHandler.connect(authToken);
 
+
 		/*
-		These are a bunch of functions for changing UI based on incoming data from the server
+		Callback functions for changing UI based on incoming data from the server
 		*/
 		socketHandler.onPairCodeReceived((code: number) => {
 			setPairingCode(code);
 		});
 
+
 		socketHandler.onNameReceived((name: string) => {
 			setName(name);
 		});
 
+
 		socketHandler.onClientConnected((client: Client) => {
 			setClients((prev) => {
-				if (prev.some((c) => c.id == client.id)) {
-					return prev;
-				}
+				if (prev.some((c) => c.id == client.id)) return prev;
 
 				return [...prev, client];
 			});
@@ -479,39 +493,34 @@ const App = () => {
 			setActivePanel("none");
 		});
 
-		socketHandler.onMetaReceived(
-			(client: Client, file: TemporaryFile, messageId: string) => {
-				const message = buildTemporaryMessage(file, client, messageId);
 
-				addMessage(client, message);
-			},
-		);
+		socketHandler.onMetaReceived((client: Client, file: TemporaryFile, messageId: string) => {
+			const message = buildMessage(file, client, messageId);
 
-		socketHandler.onFileReceived(
-			async (client: Client, file: File, messageId: string) => {
-				//Upload to database
-				if (saveFiles) {
-					await fileStorageHandler.addFile(messageId, file);
-				}
+			addMessage(client, message);
+		});
 
-				//Add file to the specified client
-				editMessage(
-					messageId,
-					client,
-					file.name,
-					URL.createObjectURL(file),
-					new Date().toLocaleString(),
-					"sent",
-				);
-			},
-		);
+		
+		socketHandler.onFileReceived(async (client: Client, file: File, messageId: string) => {
+			//Upload to IndexedDB
+			if (saveFiles) {
+				await fileStorageHandler.addFile(messageId, file);
+			}
+
+			//Add file to the specified client
+			editMessage(
+				messageId,
+				client,
+				file.name,
+				URL.createObjectURL(file),
+				new Date().toLocaleString(),
+				"sent",
+			);
+		});
+
 
 		socketHandler.onClientRemoved((clientId: string) => {
-			setConversations((prev) =>
-				prev.filter(
-					(conversation) => conversation.client.id != clientId,
-				),
-			);
+			setConversations( (prev) => prev.filter( (c) => c.client.id != clientId ) );
 
 			setClients((prev) => prev.filter((c) => c.id !== clientId));
 
@@ -519,6 +528,7 @@ const App = () => {
 				setSelectedClient({ id: "", name: "", online: false });
 			}
 		});
+
 
 		socketHandler.onNameChanged((targetClientId: string, name: string) => {
 			setClients((prev) =>
@@ -528,10 +538,12 @@ const App = () => {
 			);
 		});
 
+
 		socketHandler.onContactsReceived((contacts: Client[]) => {
 			setClients(contacts);
 			// setClients([...contacts, ...testClients]);
 		});
+
 
 		socketHandler.onClientOnlineStatusChange(
 			//Change status of the specified client
@@ -546,6 +558,7 @@ const App = () => {
 			},
 		);
 
+
 		socketHandler.onFileSent((messageId: string) => {
 			editMessage(
 				messageId,
@@ -558,6 +571,7 @@ const App = () => {
 			);
 		});
 
+
 		socketHandler.onFileFailed((messageId: string) => {
 			editMessage(
 				messageId,
@@ -569,6 +583,7 @@ const App = () => {
 				0,
 			);
 		});
+
 
 		socketHandler.updateProgressBar(
 			(messageId: string, progress: number) => {
@@ -584,19 +599,23 @@ const App = () => {
 			},
 		);
 
+
 		socketHandler.onConnectionStatusChange((connected) => {
 			setServerConnected(connected);
 		});
+
 
 		return () => {
 			socketHandler.disconnect();
 		};
 	}, []);
 
+	
 	useEffect(() => {
 		socketHandler.setAutoDownload(autoDownload);
 	}, [autoDownload]);
 
+	
 	useEffect(() => {
 		socketHandler.setSoundOnDownload(soundOnDownload);
 	}, [soundOnDownload]);

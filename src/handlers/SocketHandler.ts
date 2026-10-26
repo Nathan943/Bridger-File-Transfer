@@ -7,7 +7,7 @@ import cryptoHandler from "./CryptoHandler";
 import notificationSound from "../sounds/notification.mp3";
 
 //Files are sent in chunks of CHUNK_SIZE
-const CHUNK_SIZE = 128 * 1024;
+const CHUNK_SIZE = 256 * 1024;
 
 //Handle everything to do with the connection to the server and other clients
 class SocketHandler {
@@ -19,11 +19,15 @@ class SocketHandler {
 
 	//Stores the client a file is being sent from
 	private incomingTransfers = new Map<string, IncomingTransfer>();
+	private outgoingTransfers = new Map<string, string>();
 
+
+	//User specific app settings
 	private autoDownload = false;
 	private soundOnDownload = false;
 
 	private downloadSound = new Audio(notificationSound);
+
 
 	private decoder = new TextDecoder();
 
@@ -64,6 +68,8 @@ class SocketHandler {
 	) => void;
 	private onConnectionStatusChangeCallback?: (connected: boolean) => void;
 
+
+
 	//Initialize WebSocket connection
 	connect(authToken: string | null) {
 		const wsUrl = "wss://ws.nathanpederson.com";
@@ -84,8 +90,9 @@ class SocketHandler {
 
 		//Listen for messages from the server
 		this.socket.addEventListener("message", async (msg) => {
-			//Check for raw file data first
+			//Check for raw file data first, that is a chunk of data coming in
 			if (typeof msg.data !== "string") {
+				//Decode the binary chunk
 				const bytes = new Uint8Array(await msg.data.arrayBuffer());
 
 				const messageId = this.decoder.decode(bytes.subarray(0, 36));
@@ -93,6 +100,7 @@ class SocketHandler {
 				const transfer = this.incomingTransfers.get(messageId);
 				if (!transfer) return;
 
+				//Then decrypt
 				const chunk = bytes.slice(36);
 				const decryptedChunk = await cryptoHandler.decryptChunk(
 					chunk.buffer,
@@ -101,20 +109,19 @@ class SocketHandler {
 					transfer.receivedChunks,
 				);
 
+				//Add to the specified transfer
 				transfer.file.chunks.push(decryptedChunk);
-
 				transfer.receivedChunks++;
-
 				transfer.receivedBytes += decryptedChunk.byteLength;
 
+
+				//If transfer is done
 				if (transfer.receivedBytes >= transfer.file.size) {
 					//Reconstruct a file now that all information has been sent, and send the file to App
 					const client = transfer.client;
 					const file = transfer.file;
 
-					const reconstructedBlob = new Blob(file.chunks, {
-						type: file.type,
-					});
+					const reconstructedBlob = new Blob(file.chunks, {type: file.type});
 
 					const reconstructedFile = new File(
 						[reconstructedBlob],
@@ -151,12 +158,16 @@ class SocketHandler {
 						setTimeout(() => URL.revokeObjectURL(url), 1000);
 					}
 
+					//Play a sound if the setting is enabled
 					if (this.soundOnDownload) {
 						this.playDownloadSound();
 					}
 
+					//Delete the incoming transfer object as it is finished
 					this.incomingTransfers.delete(messageId);
 				} else {
+
+					//Otherwise, transfer is still ongoing, so update progress bar UI
 					const progress =
 						(transfer.file.chunks.length * CHUNK_SIZE) /
 						transfer.file.size;
@@ -166,8 +177,10 @@ class SocketHandler {
 				return;
 			}
 
+
 			//If not raw file data, parse the JSON message
 			const parsedMessage = JSON.parse(msg.data);
+
 
 			/*
 			Decide what to do with the message
@@ -178,7 +191,10 @@ class SocketHandler {
 					const pairingCode = parsedMessage.pairingCode;
 					this.onPairCodeReceivedCallback?.(pairingCode);
 					break;
+
+
 				case "CLIENT_INFO":
+					//Log the connected client's info
 					this.clientId = parsedMessage.clientId;
 
 					localStorage.setItem("clientId", parsedMessage.clientId);
@@ -191,6 +207,7 @@ class SocketHandler {
 					);
 					break;
 
+
 				case "CLIENT_NAME_CHANGED":
 					//Change name for a contact in App
 					this.onNameChangedCallback?.(
@@ -199,12 +216,15 @@ class SocketHandler {
 					);
 					break;
 
+
 				case "CONTACT_LIST":
 					//Display connected clients in App
 					this.onContactsReceivedCallback?.(parsedMessage.contacts);
 					break;
 
+
 				case "CLIENT_STATUS_CHANGE":
+					//If a connection went offline, cancel all incoming and outgoing transfers
 					if (!parsedMessage.online) {
 						for (const [messageId, transfer] of this
 							.incomingTransfers) {
@@ -213,18 +233,25 @@ class SocketHandler {
 								this.incomingTransfers.delete(messageId);
 							}
 						}
+
+						for (const [messageId, targetClientId] of this
+							.outgoingTransfers) {
+							if (targetClientId == parsedMessage.clientId) {
+								this.onFileFailedCallback?.(messageId);
+								this.outgoingTransfers.delete(messageId);
+							}
+						}
 					}
 
-					//Change online status for a client in App
+					//Change status for a client in App
 					this.onClientOnlineStatusChangeCallback?.(
 						parsedMessage.clientId,
 						parsedMessage.online,
 					);
 					break;
 
-				case "CONNECTED_CLIENT_INFO":
-					//Add new contact in App
 
+				case "CONNECTED_CLIENT_INFO":
 					//If no name or id was sent, do nothing (usually means pairing failed)
 					if (parsedMessage.clientId == null) break;
 
@@ -238,7 +265,9 @@ class SocketHandler {
 					this.onClientConnectedCallback?.(newClient);
 					break;
 
+
 				case "CLIENT_REMOVED":
+					//Delete all current incoming transfers
 					for (const [messageId, transfer] of this
 						.incomingTransfers) {
 						if (transfer.client.id == parsedMessage.clientId) {
@@ -246,11 +275,14 @@ class SocketHandler {
 						}
 					}
 
+					//Tell app to delete all UI and messages associated with the removed client
 					this.onClientRemovedCallback?.(parsedMessage.clientId);
 
 					break;
 
+
 				case "PUBLIC_KEY":
+					//Receive a public key, check if it is valid, and save it
 					const isTrusted = await cryptoHandler.checkKey(
 						parsedMessage.targetClientId,
 						parsedMessage.publicKey,
@@ -267,6 +299,7 @@ class SocketHandler {
 					);
 
 					break;
+
 
 				case "FILE_META":
 					const incomingFile = {
@@ -293,16 +326,22 @@ class SocketHandler {
 
 					break;
 
+
 				case "FILE_FAILED":
 					this.onFileFailedCallback?.(parsedMessage.messageId);
 					break;
+
+
 			}
 		});
 
 		//Listen for connection close
 		this.socket.addEventListener("close", () => {
+			//Keep trying to reconnect
 			console.log("reconnecting");
 			this.connect(authToken);
+
+			//Alert App that the server is no longer connected
 			setTimeout(() => {
 				if (this.socket?.readyState != WebSocket.OPEN) {
 					this.onConnectionStatusChangeCallback?.(false);
@@ -314,10 +353,14 @@ class SocketHandler {
 		this.socket.addEventListener("error", () => {});
 	}
 
+
+
 	//Close the socket connection
 	disconnect() {
 		this.socket?.close();
 	}
+
+
 
 	//Request pairing code from server
 	getPairingCode = () => {
@@ -327,6 +370,8 @@ class SocketHandler {
 			}),
 		);
 	};
+
+
 
 	//Request name change
 	editName = (name: string) => {
@@ -338,6 +383,8 @@ class SocketHandler {
 		);
 	};
 
+
+
 	//Ask server to connect with another client
 	connectWithClient = (pairingCode: string) => {
 		this.socket?.send(
@@ -348,6 +395,9 @@ class SocketHandler {
 		);
 	};
 
+
+
+	//Delete contact with a client
 	deleteClient(clientId: string) {
 		this.socket?.send(
 			JSON.stringify({
@@ -357,6 +407,9 @@ class SocketHandler {
 		);
 	}
 
+
+
+	//Play a download sound
 	playDownloadSound() {
 		this.downloadSound.volume = 0.5;
 		this.downloadSound.currentTime = 0;
@@ -365,26 +418,17 @@ class SocketHandler {
 		});
 	}
 
+
+
 	//Start the process of sending a file to the server
 	async send(file: File, targetClient: Client, messageId: string) {
-		if (
-			!file ||
-			!targetClient ||
-			!this.socket ||
-			this.socket.readyState != WebSocket.OPEN
-		)
-			return;
+		if (!file || !targetClient || !this.socket || this.socket.readyState != WebSocket.OPEN) return;
 
+		this.outgoingTransfers.set(messageId, targetClient.id);
+
+
+		//Send metadata with IV
 		const baseIv = cryptoHandler.getBaseIv();
-
-		// const url = URL.createObjectURL(encryptedData.file);
-
-		// const a = document.createElement("a");
-		// a.href = url;
-		// a.download = "encrypted.bin";
-		// a.click();
-
-		// URL.revokeObjectURL(url);
 
 		this.socket.send(
 			JSON.stringify({
@@ -398,6 +442,7 @@ class SocketHandler {
 			}),
 		);
 
+
 		const encoder = new TextEncoder();
 		const idBytes = encoder.encode(messageId.padEnd(36));
 
@@ -405,20 +450,26 @@ class SocketHandler {
 		let chunkNumber = 0;
 
 		try {
+			//While there are still chunks, send them
 			while (counter < file.size) {
-				const end = Math.min(counter + CHUNK_SIZE, file.size);
+				if (!this.outgoingTransfers.has(messageId)) {
+					return;
+				}
 
+				//Get a chunk of the file, if it is the last chunk, trim it 
+				const end = Math.min(counter + CHUNK_SIZE, file.size);
 				const chunk = file.slice(counter, end);
 
+				//Encrypt chunk
 				const encryptedChunk = await cryptoHandler.encryptChunk(
 					await chunk.arrayBuffer(),
 					targetClient.id,
 					baseIv,
 					chunkNumber,
 				);
-
 				const encryptedBytes = new Uint8Array(encryptedChunk);
 
+				//Construct the packet to to be sent, consisting of the data and transfer id
 				const packet = new Uint8Array(
 					idBytes.length + encryptedBytes.length,
 				);
@@ -426,31 +477,43 @@ class SocketHandler {
 				packet.set(idBytes);
 				packet.set(encryptedBytes, idBytes.length);
 
-				while (this.socket.bufferedAmount > 128 * 1024) {
+				//Don't send more than 4 chunks at a time
+				while (this.socket.bufferedAmount > 4 * CHUNK_SIZE) {
 					await new Promise((resolve) => setTimeout(resolve, 1));
 				}
 
+				//If socket closes mid transfer, mark as failed
 				if (this.socket.readyState != WebSocket.OPEN) {
 					this.onFileFailedCallback?.(messageId);
 					return;
 				}
+
+				//Finally, send the packet
 				this.socket.send(packet);
 
+				//Increment counters
 				counter = end;
 				chunkNumber++;
 
+				//Update progress bar UI with current progress
 				this.updateProgressBarCallback?.(
 					messageId,
 					counter / file.size,
 				);
 			}
 
+			//When transfer is done, delete the outgoingTransfer and tell App the file was sent
+			this.outgoingTransfers.delete(messageId);
 			this.onFileSentCallback?.(messageId);
 		} catch (e) {
+			//If anything fails with sending, cancel the transfer
+			this.outgoingTransfers.delete(messageId);
 			this.onFileFailedCallback?.(messageId);
 		}
 	}
 
+
+	//Settings
 	setAutoDownload(value: boolean) {
 		this.autoDownload = value;
 	}
@@ -458,6 +521,8 @@ class SocketHandler {
 	setSoundOnDownload(value: boolean) {
 		this.soundOnDownload = value;
 	}
+
+
 
 	/*
 	More callback function stuff so App can receive data
@@ -474,9 +539,7 @@ class SocketHandler {
 		this.onClientConnectedCallback = callback;
 	}
 
-	onFileReceived(
-		callback: (client: Client, file: File, messageId: string) => void,
-	) {
+	onFileReceived(callback: (client: Client, file: File, messageId: string) => void) {
 		this.onFileReceivedCallback = callback;
 	}
 
@@ -492,9 +555,7 @@ class SocketHandler {
 		this.onContactsReceivedCallback = callback;
 	}
 
-	onClientOnlineStatusChange(
-		callback: (targetClientId: string, online: boolean) => void,
-	) {
+	onClientOnlineStatusChange(callback: (targetClientId: string, online: boolean) => void) {
 		this.onClientOnlineStatusChangeCallback = callback;
 	}
 
@@ -506,13 +567,7 @@ class SocketHandler {
 		this.onFileFailedCallback = callback;
 	}
 
-	onMetaReceived(
-		callback: (
-			client: Client,
-			file: TemporaryFile,
-			messageId: string,
-		) => void,
-	) {
+	onMetaReceived(callback: (client: Client, file: TemporaryFile, messageId: string) => void) {
 		this.onMetaReceivedCallback = callback;
 	}
 

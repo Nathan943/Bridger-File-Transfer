@@ -1,7 +1,9 @@
 import { EncryptedFileData } from "../types/types";
 
-const CHUNK_SIZE = 1024 * 1024;
+const CHUNK_SIZE = 256 * 1024;
 
+
+//Helper function to convert data to base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
 	const bytes = new Uint8Array(buffer);
 	let binary = "";
@@ -13,6 +15,9 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 	return btoa(binary);
 }
 
+
+
+//Helper function to convert base64 to data
 function base64ToArrayBuffer(base64: string): ArrayBuffer {
 	const binary = atob(base64);
 	const bytes = new Uint8Array(binary.length);
@@ -24,6 +29,8 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 	return bytes.buffer;
 }
 
+
+
 class CryptoHandler {
 	private publicKey: CryptoKey | null = null;
 	private privateKey: CryptoKey | null = null;
@@ -34,6 +41,8 @@ class CryptoHandler {
 	private request: IDBOpenDBRequest | null = null;
 	private db!: IDBDatabase;
 
+
+	//On initialize, load keys from the database if they exist, and create new ones if not
 	async initialize() {
 		await this.openDatabase();
 		await this.loadKeys();
@@ -43,6 +52,9 @@ class CryptoHandler {
 		}
 	}
 
+
+
+	//Generate private and public keys
 	private async generateKeyPair(): Promise<void> {
 		const keyPair = await crypto.subtle.generateKey(
 			{ name: "X25519" },
@@ -58,6 +70,9 @@ class CryptoHandler {
 		await this.loadKeys();
 	}
 
+
+
+	//Export the public key to be sent to other clients
 	async exportPublicKey() {
 		if (!this.publicKey) {
 			throw new Error("Public key not intialized");
@@ -71,6 +86,9 @@ class CryptoHandler {
 		return arrayBufferToBase64(publicKeyBuffer);
 	}
 
+
+
+	//Convert the keys from other clients into usable data
 	async importPublicKey(
 		base64Key: string,
 		targetClientId: string,
@@ -89,6 +107,9 @@ class CryptoHandler {
 		);
 	}
 
+
+
+	//Get the shared key using others public keys and this private key
 	private async deriveSharedKey(
 		otherPublicKey: CryptoKey,
 	): Promise<CryptoKey> {
@@ -103,14 +124,23 @@ class CryptoHandler {
 		);
 	}
 
+
+
+	//Get the IV that will then be incremented per chunk
 	getBaseIv(): Uint8Array<ArrayBuffer> {
 		return crypto.getRandomValues(new Uint8Array(12));
 	}
 
+
+
+	//Public function for base64 conversion
 	toBase64(iv: Uint8Array) {
 		return arrayBufferToBase64(iv.buffer as ArrayBuffer);
 	}
 
+
+
+	//Generate the unique IV for the specific chunk by just incrementing it (it's not very safe but it doesn't matter)
 	private makeIv(
 		baseIV: Uint8Array<ArrayBuffer>,
 		chunkNumber: number,
@@ -124,6 +154,9 @@ class CryptoHandler {
 		return iv;
 	}
 
+
+
+	//Encrypt a chunk
 	async encryptChunk(
 		chunk: ArrayBuffer,
 		targetClientId: string,
@@ -141,6 +174,9 @@ class CryptoHandler {
 		return crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, chunk);
 	}
 
+
+
+	//Decrypt a chunk
 	async decryptChunk(
 		encryptedChunk: ArrayBuffer,
 		targetClientId: string,
@@ -158,17 +194,12 @@ class CryptoHandler {
 		const baseIv = new Uint8Array(base64ToArrayBuffer(ivBase64));
 		const iv = this.makeIv(baseIv, chunkNumber);
 
-		return await crypto.subtle.decrypt(
-			{
-				name: "AES-GCM",
-				iv,
-			},
-			aesKey,
-			encryptedChunk,
-		);
+		return await crypto.subtle.decrypt( { name: "AES-GCM", iv}, aesKey, encryptedChunk );
 	}
 
-	//Connect to the database
+
+
+	//Connect to IndexedDB
 	private async openDatabase(): Promise<void> {
 		if (this.db) return;
 
@@ -204,6 +235,9 @@ class CryptoHandler {
 		});
 	}
 
+
+
+	//Save created public and private keys in the IndexedDB
 	private async saveKeys(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			const transaction = this.db.transaction("keys", "readwrite");
@@ -225,6 +259,9 @@ class CryptoHandler {
 		});
 	}
 
+
+
+	//Load keys from the IndexedDB
 	private async loadKeys(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			const transaction = this.db!.transaction("keys", "readonly");
@@ -247,6 +284,9 @@ class CryptoHandler {
 		});
 	}
 
+
+
+	//Check if a foreign public key is recognized, if not then store it
 	async checkKey(
 		targetClientId: string,
 		receivedKey: string,
@@ -272,8 +312,7 @@ class CryptoHandler {
 					});
 
 					writeTransaction.oncomplete = () => resolve(true);
-					writeTransaction.onerror = () =>
-						reject(writeTransaction.error);
+					writeTransaction.onerror = () => reject(writeTransaction.error);
 					return;
 				}
 
@@ -290,8 +329,7 @@ class CryptoHandler {
 					});
 
 					writeTransaction.oncomplete = () => resolve(true);
-					writeTransaction.onerror = () =>
-						reject(writeTransaction.error);
+					writeTransaction.onerror = () => reject(writeTransaction.error);
 
 					return;
 				}
