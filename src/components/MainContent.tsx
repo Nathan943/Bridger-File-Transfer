@@ -3,9 +3,9 @@ import PairingMenu from "./PairingMenu";
 import { Message, Client } from "../types/types";
 import MessageDisplay from "./MessageDisplay";
 import Settings from "./Settings";
-import deleteIconDark from "../icons/back-dark.png";
-import deleteIconLight from "../icons/back-light.png";
-import { ThemeMode, useTheme } from "../context/ThemeContext";
+import backIconDark from "../icons/back-dark.png";
+import backIconLight from "../icons/back-light.png";
+import { useTheme } from "../context/ThemeContext";
 
 interface Props {
 	activePanel: "none" | "pairing" | "settings" | "contact";
@@ -62,20 +62,14 @@ const MainContent = ({
 						onClick={onMobileBackButton}
 					>
 						<img
-							src={
-								themeMode == "dark"
-									? deleteIconDark
-									: deleteIconLight
-							}
+							src={ themeMode == "dark" ? backIconDark : backIconLight }
 							height={"20px"}
 						/>
 					</button>
 
 					<div className="d-flex flex-column justify-content-center">
 						<h4 className="lh-1 my-0 p-0">
-							{activePanel == "contact" &&
-								selectedClient &&
-								selectedClient.name}
+							{activePanel == "contact" && selectedClient && selectedClient.name}
 
 							{activePanel == "pairing" && "Pair Device"}
 
@@ -105,9 +99,7 @@ const MainContent = ({
 			) : activePanel == "contact" ? (
 				<div
 					className="d-flex flex-column flex-grow-1 w-100 align-items-center"
-					style={{
-						height: isMobileUI ? "calc(100dvh - 60px)" : "100%",
-					}}
+					style={{ height: isMobileUI ? "calc(100dvh - 60px)" : "100%" }}
 				>
 					<div
 						className="d-flex flex-grow-1 overflow-auto mb-2 pt-4 w-100 justify-content-center"

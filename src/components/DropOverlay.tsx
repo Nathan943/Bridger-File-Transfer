@@ -8,8 +8,7 @@ const DropOverlay = () => {
 		<div
 			className="vw-100 vh-100 position-absolute d-flex flex-column align-items-center justify-content-center"
 			style={{
-				backgroundColor:
-					themeMode == "dark" ? "#000000ce" : "#00000098",
+				backgroundColor: themeMode == "dark" ? "#000000ce" : "#00000098",
 				zIndex: "9999",
 				border: `4px dashed ${themeMode == "dark" ? "rgba(255, 255, 255, 0.35)" : "rgba(255, 255, 255, 0.73)"}`,
 			}}

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Client } from "../types/types";
 import { ThemeMode, useTheme } from "../context/ThemeContext";
+import deleteIcon from "../icons/delete.png";
+import deleteGrayIcon from "../icons/delete-gray.png";
 
 interface Props {
 	client: Client;
@@ -19,8 +21,7 @@ const ClientListItem = ({ client, selected, onClick, onDelete }: Props) => {
 		<li
 			className={`w-100 list-group-item d-flex justify-content-between align-items-center border-0 rounded-3 `}
 			style={{
-				backgroundColor:
-					selected || isHovered ? theme.selected : "transparent",
+				backgroundColor: selected || isHovered ? theme.selected : "transparent",
 				cursor: "pointer",
 				transition: "background-color 0.15s ease",
 				padding: "2.5cqw 5cqw",
@@ -57,11 +58,7 @@ const ClientListItem = ({ client, selected, onClick, onDelete }: Props) => {
 				onMouseLeave={() => setIsDeleteHovered(false)}
 			>
 				<img
-					src={
-						isDeleteHovered
-							? "../src/icons/delete.png"
-							: "../src/icons/delete-gray.png"
-					}
+					src={isDeleteHovered ? deleteIcon : deleteGrayIcon}
 					style={{
 						width: "8cqw",
 					}}

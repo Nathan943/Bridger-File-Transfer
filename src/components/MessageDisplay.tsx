@@ -1,5 +1,7 @@
 import React from "react";
 import { ThemeMode, useTheme } from "../context/ThemeContext";
+import downloadBlue from "../icons/download-blue.png";
+import downloadWhite from "../icons/download-white.png";
 
 function formatFileSize(bytes?: number): string {
 	if (bytes == null || Number.isNaN(bytes)) {
@@ -110,11 +112,7 @@ const MessageDisplay = ({
 					<a href={downloadUrl} download={filename} className="m-2">
 						<img
 							style={{ width: "20px" }}
-							src={
-								isIncoming
-									? "../src/icons/download-blue.png"
-									: "../src/icons/download-white.png"
-							}
+							src={ isIncoming ? downloadBlue : downloadWhite }
 						/>
 					</a>
 				)}

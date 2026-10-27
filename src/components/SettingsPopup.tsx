@@ -1,5 +1,9 @@
 import React, { useContext, useState } from "react";
 import { ThemeMode, useTheme } from "../context/ThemeContext";
+import editLight from "../icons/edit-light.png";
+import editDark from "../icons/edit-dark.png";
+import settingsLight from "../icons/settings-light.png";
+import settingsDark from "../icons/settings-dark.png";
 
 interface Props {
 	name: string;
@@ -66,10 +70,7 @@ const SettingsPopup = ({
 						textOverflow: "ellipsis",
 						whiteSpace: "nowrap",
 						boxShadow: "none",
-						backgroundColor:
-							open || isHovered
-								? theme.selected
-								: theme.background,
+						backgroundColor: open || isHovered ? theme.selected : theme.background,
 					}}
 					onClick={(e) => {
 						setOpen(!open);
@@ -112,11 +113,7 @@ const SettingsPopup = ({
 						onMouseLeave={() => setEditIsHovered(false)}
 					>
 						<img
-							src={
-								themeMode == "light"
-									? "../src/icons/edit-light.png"
-									: "../src/icons/edit-dark.png"
-							}
+							src={ themeMode == "light" ? editLight : editDark }
 							style={{
 								width: "6cqw",
 								height: "6cqw",
@@ -132,9 +129,7 @@ const SettingsPopup = ({
 						style={{
 							padding: "2.5cqw",
 							paddingLeft: "5cqw",
-							backgroundColor: settingsIsHovered
-								? theme.hover
-								: theme.settingsPopupBackground,
+							backgroundColor: settingsIsHovered ? theme.hover : theme.settingsPopupBackground,
 						}}
 						onClick={() => {
 							toggleSettings();
@@ -146,11 +141,7 @@ const SettingsPopup = ({
 						onMouseLeave={() => setSettingsIsHovered(false)}
 					>
 						<img
-							src={
-								themeMode == "light"
-									? "../src/icons/settings-light.png"
-									: "../src/icons/settings-dark.png"
-							}
+							src={ themeMode == "light" ? settingsLight : settingsDark }
 							style={{
 								width: "6cqw",
 								height: "6cqw",
