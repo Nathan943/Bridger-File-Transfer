@@ -72,7 +72,7 @@ class SocketHandler {
 
 	//Initialize WebSocket connection
 	connect(authToken: string | null) {
-		const wsUrl = "wss://ws.nathanpederson.com";
+		const wsUrl = "wss://ws.bridgertransfer.com";
 		this.socket = new WebSocket(wsUrl);
 
 		//Connect to the server and tell it that this client is online
